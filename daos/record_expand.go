@@ -10,7 +10,6 @@ import (
 	"github.com/AlperRehaYAZGAN/postgresbase/models"
 	"github.com/AlperRehaYAZGAN/postgresbase/models/schema"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/dbutils"
-	"github.com/AlperRehaYAZGAN/postgresbase/tools/inflector"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/list"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/security"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/types"
