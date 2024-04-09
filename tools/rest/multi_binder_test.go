@@ -13,6 +13,46 @@ import (
 	"github.com/labstack/echo/v5"
 )
 
+func TestMultiBinderBind(t *testing.T) {
+	binder := rest.MultiBinder{}
+
+	req := httptest.NewRequest(http.MethodGet, "/test?query=123", strings.NewReader(`{"body":"456"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+
+	rec := httptest.NewRecorder()
+
+	e := echo.New()
+	e.Any("/:name", func(c echo.Context) error {
+		// bind twice to ensure that the json body reader copy is invoked
+		for i := 0; i < 2; i++ {
+			data := struct {
+				Name  string `param:"name"`
+				Query string `query:"query"`
+				Body  string `form:"body"`
+			}{}
+
+			if err := binder.Bind(c, &data); err != nil {
+				t.Fatal(err)
+			}
+
+			if data.Name != "test" {
+				t.Fatalf("Expected Name %q, got %q", "test", data.Name)
+			}
+
+			if data.Query != "123" {
+				t.Fatalf("Expected Query %q, got %q", "123", data.Query)
+			}
+
+			if data.Body != "456" {
+				t.Fatalf("Expected Body %q, got %q", "456", data.Body)
+			}
+		}
+
+		return nil
+	})
+	e.ServeHTTP(rec, req)
+}
+
 func TestBindBody(t *testing.T) {
 	scenarios := []struct {
 		body        io.Reader
@@ -41,16 +81,17 @@ func TestBindBody(t *testing.T) {
 		{
 			strings.NewReader(
 				url.Values{
-					"string":  []string{"str"},
-					"stings":  []string{"str1", "str2", ""},
-					"number":  []string{"-123"},
-					"numbers": []string{"123", "456.789"},
-					"bool":    []string{"true"},
-					"bools":   []string{"true", "false"},
+					"string":              []string{"str"},
+					"stings":              []string{"str1", "str2", ""},
+					"number":              []string{"-123"},
+					"numbers":             []string{"123", "456.789"},
+					"bool":                []string{"true"},
+					"bools":               []string{"true", "false"},
+					rest.MultipartJsonKey: []string{`invalid`, `{"a":123}`, `{"b":456}`},
 				}.Encode(),
 			),
 			echo.MIMEApplicationForm,
-			`{"bool":true,"bools":[true,false],"number":-123,"numbers":[123,456.789],"stings":["str1","str2",""],"string":"str"}`,
+			`{"a":123,"b":456,"bool":true,"bools":[true,false],"number":-123,"numbers":[123,456.789],"stings":["str1","str2",""],"string":"str"}`,
 			false,
 		},
 	}

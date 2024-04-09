@@ -20,6 +20,7 @@ import (
 	"github.com/AlperRehaYAZGAN/postgresbase/tests"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/filesystem"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/list"
+	"github.com/AlperRehaYAZGAN/postgresbase/tools/rest"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/types"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/labstack/echo/v5"
@@ -150,9 +151,10 @@ func TestRecordUpsertLoadRequestMultipart(t *testing.T) {
 	}
 
 	formData, mp, err := tests.MockMultipartData(map[string]string{
-		"a.b.id":      "test_id",
-		"a.b.text":    "test123",
-		"a.b.unknown": "test456",
+		"a.b.id":                       "test_id",
+		"a.b.text":                     "test123",
+		"a.b.unknown":                  "test456",
+		"a.b." + rest.MultipartJsonKey: `{"json":["a","b"],"email":"test3@example.com"}`,
 		// file fields unset/delete
 		"a.b.file_one-":                    "test_d61b33QdDU.txt", // delete with modifier
 		"a.b.file_many.0":                  "",                    // delete by index
@@ -182,6 +184,19 @@ func TestRecordUpsertLoadRequestMultipart(t *testing.T) {
 
 	if v, ok := form.Data()["unknown"]; ok {
 		t.Fatalf("Didn't expect unknown field to be set, got %v", v)
+	}
+
+	if v, ok := form.Data()["email"]; !ok || v != "test3@example.com" {
+		t.Fatalf("Expect email field to be %q, got %q", "test3@example.com", v)
+	}
+
+	rawJsonValue, ok := form.Data()["json"].(types.JsonRaw)
+	if !ok {
+		t.Fatal("Expect json field to be set")
+	}
+	expectedJsonValue := `["a","b"]`
+	if rawJsonValue.String() != expectedJsonValue {
+		t.Fatalf("Expect json field %v, got %v", expectedJsonValue, rawJsonValue)
 	}
 
 	fileOne, ok := form.Data()["file_one"]

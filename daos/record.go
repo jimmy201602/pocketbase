@@ -40,14 +40,14 @@ func (dao *Dao) RecordQuery(collectionModelOrIdentifier any) *dbx.SelectQuery {
 		collection, collectionErr = dao.FindCollectionByNameOrId(c)
 		if collection != nil {
 			tableName = collection.Name
-		} else {
-			// update with some fake table name for easier debugging
-			tableName = "@@__missing_" + c
 		}
 	default:
-		// update with some fake table name for easier debugging
-		tableName = "@@__invalidCollectionModelOrIdentifier"
 		collectionErr = errors.New("unsupported collection identifier, must be collection model, id or name")
+	}
+
+	// update with some fake table name for easier debugging
+	if tableName == "" {
+		tableName = "@@__invalidCollectionModelOrIdentifier"
 	}
 
 	selectCols := fmt.Sprintf("%s.*", dao.DB().QuoteSimpleColumnName(tableName))
@@ -198,8 +198,6 @@ func (dao *Dao) FindRecordsByIds(
 	return records, nil
 }
 
-// @todo consider to depricate as it may be easier to just use dao.RecordQuery()
-//
 // FindRecordsByExpr finds all records by the specified db expression.
 //
 // Returns all collection records if no expressions are provided.
@@ -432,7 +430,7 @@ func (dao *Dao) FindAuthRecordByToken(token string, baseTokenKey string) (*model
 	}
 
 	if !record.Collection().IsAuth() {
-		return nil, errors.New("The token is not associated to an auth collection record.")
+		return nil, errors.New("the token is not associated to an auth collection record")
 	}
 
 	verificationKey := record.TokenKey() + baseTokenKey
@@ -659,8 +657,6 @@ func (dao *Dao) DeleteRecord(record *models.Record) error {
 //
 // NB! This method is expected to be called inside a transaction.
 func (dao *Dao) cascadeRecordDelete(mainRecord *models.Record, refs map[*models.Collection][]*schema.SchemaField) error {
-	uniqueJsonEachAlias := "__je__" + security.PseudorandomString(4)
-
 	// @todo consider changing refs to a slice
 	//
 	// Sort the refs keys to ensure that the cascade events firing order is always the same.
@@ -684,15 +680,17 @@ func (dao *Dao) cascadeRecordDelete(mainRecord *models.Record, refs map[*models.
 			recordTableName := inflector.Columnify(refCollection.Name)
 			prefixedFieldName := recordTableName + "." + inflector.Columnify(field.Name)
 
-			query := dao.RecordQuery(refCollection).Distinct(true)
+			query := dao.RecordQuery(refCollection)
 
 			if opt, ok := field.Options.(schema.MultiValuer); !ok || !opt.IsMultiple() {
 				query.AndWhere(dbx.HashExp{prefixedFieldName: mainRecord.Id})
 			} else {
-				query.InnerJoin(fmt.Sprintf(
-					`json_each(CASE WHEN json_valid([[%s]]) THEN [[%s]] ELSE json_array([[%s]]) END) as {{%s}}`,
-					prefixedFieldName, prefixedFieldName, prefixedFieldName, uniqueJsonEachAlias,
-				), dbx.HashExp{uniqueJsonEachAlias + ".value": mainRecord.Id})
+				query.AndWhere(dbx.Exists(dbx.NewExp(fmt.Sprintf(
+					`SELECT 1 FROM json_each(CASE WHEN json_valid([[%s]]) THEN [[%s]] ELSE json_array([[%s]]) END) {{__je__}} WHERE [[__je__.value]]={:jevalue}`,
+					prefixedFieldName, prefixedFieldName, prefixedFieldName,
+				), dbx.Params{
+					"jevalue": mainRecord.Id,
+				})))
 			}
 
 			if refCollection.Id == mainRecord.Collection().Id {

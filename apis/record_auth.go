@@ -117,7 +117,7 @@ func (api *recordAuthApi) authMethods(c echo.Context) error {
 
 		provider, err := auth.NewProviderByName(name)
 		if err != nil {
-			api.app.Logger().Debug("Missing or invalid provier name", slog.String("name", name))
+			api.app.Logger().Debug("Missing or invalid provider name", slog.String("name", name))
 			continue // skip provider
 		}
 
@@ -201,13 +201,14 @@ func (api *recordAuthApi) authWithOAuth2(c echo.Context) error {
 	event.HttpContext = c
 	event.Collection = collection
 	event.ProviderName = form.Provider
-	event.IsNewRecord = false
 
 	form.SetBeforeNewRecordCreateFunc(func(createForm *forms.RecordUpsert, authRecord *models.Record, authUser *auth.AuthUser) error {
 		return createForm.DrySubmit(func(txDao *daos.Dao) error {
 			event.IsNewRecord = true
+
 			// clone the current request data and assign the form create data as its body data
 			requestInfo := *RequestInfo(c)
+			requestInfo.Context = models.RequestInfoContextOAuth2
 			requestInfo.Data = form.CreateData
 
 			createRuleFunc := func(q *dbx.SelectQuery) error {
@@ -246,6 +247,7 @@ func (api *recordAuthApi) authWithOAuth2(c echo.Context) error {
 			event.Record = data.Record
 			event.OAuth2User = data.OAuth2User
 			event.ProviderClient = data.ProviderClient
+			event.IsNewRecord = data.Record == nil
 
 			return api.app.OnRecordBeforeAuthWithOAuth2Request().Trigger(event, func(e *core.RecordAuthWithOAuth2Event) error {
 				data.Record = e.Record
@@ -656,29 +658,42 @@ func (api *recordAuthApi) unlinkExternalAuth(c echo.Context) error {
 
 // -------------------------------------------------------------------
 
-const oauth2SubscriptionTopic = "@oauth2"
+const (
+	oauth2SubscriptionTopic   string = "@oauth2"
+	oauth2RedirectFailurePath string = "../_/#/auth/oauth2-redirect-failure"
+	oauth2RedirectSuccessPath string = "../_/#/auth/oauth2-redirect-success"
+)
+
+type oauth2EventMessage struct {
+	State string `json:"state"`
+	Code  string `json:"code"`
+	Error string `json:"error,omitempty"`
+}
 
 func (api *recordAuthApi) oauth2SubscriptionRedirect(c echo.Context) error {
 	state := c.QueryParam("state")
-	code := c.QueryParam("code")
-
-	if code == "" || state == "" {
-		return NewBadRequestError("Invalid OAuth2 redirect parameters.", nil)
+	if state == "" {
+		api.app.Logger().Debug("Missing OAuth2 state parameter")
+		return c.Redirect(http.StatusTemporaryRedirect, oauth2RedirectFailurePath)
 	}
 
 	client, err := api.app.SubscriptionsBroker().ClientById(state)
 	if err != nil || client.IsDiscarded() || !client.HasSubscription(oauth2SubscriptionTopic) {
-		return NewNotFoundError("Missing or invalid OAuth2 subscription client.", err)
+		api.app.Logger().Debug("Missing or invalid OAuth2 subscription client", "error", err, "clientId", state)
+		return c.Redirect(http.StatusTemporaryRedirect, oauth2RedirectFailurePath)
 	}
+	defer client.Unsubscribe(oauth2SubscriptionTopic)
 
-	data := map[string]string{
-		"state": state,
-		"code":  code,
+	data := oauth2EventMessage{
+		State: state,
+		Code:  c.QueryParam("code"),
+		Error: c.QueryParam("error"),
 	}
 
 	encodedData, err := json.Marshal(data)
 	if err != nil {
-		return NewBadRequestError("Failed to marshalize OAuth2 redirect data.", err)
+		api.app.Logger().Debug("Failed to marshalize OAuth2 redirect data", "error", err)
+		return c.Redirect(http.StatusTemporaryRedirect, oauth2RedirectFailurePath)
 	}
 
 	msg := subscriptions.Message{
@@ -688,5 +703,10 @@ func (api *recordAuthApi) oauth2SubscriptionRedirect(c echo.Context) error {
 
 	client.Send(msg)
 
-	return c.Redirect(http.StatusTemporaryRedirect, "../_/#/auth/oauth2-redirect")
+	if data.Error != "" || data.Code == "" {
+		api.app.Logger().Debug("Failed OAuth2 redirect due to an error or missing code parameter", "error", data.Error, "clientId", data.State)
+		return c.Redirect(http.StatusTemporaryRedirect, oauth2RedirectFailurePath)
+	}
+
+	return c.Redirect(http.StatusTemporaryRedirect, oauth2RedirectSuccessPath)
 }
