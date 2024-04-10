@@ -1,3 +1,4 @@
+//go:build !mysql
 package dbutils
 
 import (

@@ -133,7 +133,6 @@ func (dao *Dao) SyncRecordTableSchema(newCollection *models.Collection, oldColle
 				toRename[tempName] = field.Name
 
 				// add
-				fmt.Println("add new column")
 				_, err := txDao.DB().AddColumn(newTableName, tempName, field.ColDefinition()).Execute()
 				if err != nil {
 					return fmt.Errorf("failed to add column %s - %w", field.Name, err)
