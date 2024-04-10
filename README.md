@@ -141,4 +141,6 @@ export BCRYPT_COST=10 # default is 12
 
 # run the application
 go run -tags pq main.go serve --http=0.0.0.0:8090
+# run mysql database support application
+go run -tags mysql ./examples/mysql serve
 ```
