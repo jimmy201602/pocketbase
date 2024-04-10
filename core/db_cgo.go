@@ -1,4 +1,4 @@
-//go:build cgo && !pq
+//go:build cgo && !pq && !mysql
 
 package core
 

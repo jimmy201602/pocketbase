@@ -77,7 +77,7 @@ func (form *RecordVerificationRequest) Submit(interceptors ...InterceptorFunc[*m
 	}
 
 	if !record.Verified() {
-		now := time.Now().UTC()
+		now := time.Now()
 		lastVerificationSentAt := record.LastVerificationSentAt().Time()
 		if (now.Sub(lastVerificationSentAt)).Seconds() < form.resendThreshold {
 			return errors.New("A verification email was already sent.")

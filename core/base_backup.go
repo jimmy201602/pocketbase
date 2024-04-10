@@ -356,6 +356,6 @@ func (app *BaseApp) generateBackupName(prefix string) string {
 		"%s%s_%s.zip",
 		prefix,
 		appName,
-		time.Now().UTC().Format("20060102150405"),
+		time.Now().Format("20060102150405"),
 	)
 }

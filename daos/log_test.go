@@ -67,7 +67,7 @@ func TestLogsStats(t *testing.T) {
 
 	expected := `[{"total":1,"date":"2022-05-01 10:00:00.000Z"},{"total":1,"date":"2022-05-02 10:00:00.000Z"}]`
 
-	now := time.Now().UTC().Format(types.DefaultDateLayout)
+	now := time.Now().Format(types.DefaultDateLayout)
 	exp := dbx.NewExp("[[created]] <= {:date}", dbx.Params{"date": now})
 	result, err := app.LogsDao().LogsStats(exp)
 	if err != nil {

@@ -1,3 +1,4 @@
+//go:build !mysql
 // Package migrations contains the system PocketBase DB migrations.
 package migrations
 

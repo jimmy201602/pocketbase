@@ -9,7 +9,7 @@ import (
 )
 
 func TestNowDateTime(t *testing.T) {
-	now := time.Now().UTC().Format("2006-01-02 15:04:05") // without ms part for test consistency
+	now := time.Now().Format("2006-01-02 15:04:05") // without ms part for test consistency
 	dt := types.NowDateTime()
 
 	if !strings.Contains(dt.String(), now) {
@@ -18,7 +18,7 @@ func TestNowDateTime(t *testing.T) {
 }
 
 func TestParseDateTime(t *testing.T) {
-	nowTime := time.Now().UTC()
+	nowTime := time.Now()
 	nowDateTime, _ := types.ParseDateTime(nowTime)
 	nowStr := nowTime.Format(types.DefaultDateLayout)
 
@@ -173,7 +173,7 @@ func TestDateTimeValue(t *testing.T) {
 }
 
 func TestDateTimeScan(t *testing.T) {
-	now := time.Now().UTC().Format("2006-01-02 15:04:05") // without ms part for test consistency
+	now := time.Now().Format("2006-01-02 15:04:05") // without ms part for test consistency
 
 	scenarios := []struct {
 		value    any

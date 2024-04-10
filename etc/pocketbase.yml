@@ -1,0 +1,6 @@
+---
+bcryptCost: 10
+logsDatabase: root:@/pocketbase
+database: root:@/pocketbase
+jwtPrivateKey: etc/private.pem
+jwtPublicKey: etc/public.pem

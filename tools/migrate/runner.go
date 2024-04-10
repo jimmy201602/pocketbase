@@ -204,7 +204,7 @@ func (r *Runner) Down(toRevertCount int) ([]string, error) {
 
 func (r *Runner) createMigrationsTable() error {
 	rawQuery := fmt.Sprintf(
-		"CREATE TABLE IF NOT EXISTS %v (file VARCHAR(255) PRIMARY KEY NOT NULL, applied TIMESTAMPTZ NOT NULL)",
+		"CREATE TABLE IF NOT EXISTS %v (file VARCHAR(255) PRIMARY KEY NOT NULL, applied TIMESTAMP NOT NULL)",
 		r.db.QuoteTableName(r.tableName),
 	)
 
@@ -228,7 +228,7 @@ func (r *Runner) isMigrationApplied(tx dbx.Builder, file string) bool {
 func (r *Runner) saveAppliedMigration(tx dbx.Builder, file string) error {
 	_, err := tx.Insert(r.tableName, dbx.Params{
 		"file": file,
-		// !CHANGED: use time.Now() for timestamptz
+		// !CHANGED: use time.Now() for TIMESTAMP
 		"applied": time.Now(),
 	}).Execute()
 

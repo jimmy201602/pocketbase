@@ -1,3 +1,4 @@
+//go:build !mysql
 // Package daos handles common PocketBase DB model manipulations.
 //
 // Think of daos as DB repository and service layer in one.

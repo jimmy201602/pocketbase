@@ -1,3 +1,4 @@
+//go:build !mysql
 package models
 
 import "github.com/AlperRehaYAZGAN/postgresbase/tools/types"
