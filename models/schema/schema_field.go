@@ -6,6 +6,7 @@ import (
 	"errors"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/filesystem"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/list"
@@ -212,6 +213,7 @@ func (f SchemaField) Validate() error {
 			validation.Length(1, 255),
 			validation.Match(schemaFieldNameRegex),
 			validation.NotIn(list.ToInterfaceSlice(excludeNames)...),
+			validation.By(f.checkForVia),
 		),
 		validation.Field(&f.Type, validation.Required, validation.In(list.ToInterfaceSlice(FieldTypes())...)),
 		// currently file fields cannot be unique because a proper
@@ -227,6 +229,20 @@ func (f *SchemaField) checkOptions(value any) error {
 	}
 
 	return v.Validate()
+}
+
+// @todo merge with the collections during the refactoring
+func (f *SchemaField) checkForVia(value any) error {
+	v, _ := value.(string)
+	if v == "" {
+		return nil
+	}
+
+	if strings.Contains(strings.ToLower(v), "_via_") {
+		return validation.NewError("validation_invalid_name", "The name of the field cannot contain '_via_'.")
+	}
+
+	return nil
 }
 
 // InitOptions initializes the current field options based on its type.

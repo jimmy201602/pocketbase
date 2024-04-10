@@ -96,7 +96,7 @@ declare function routerAdd(
  * ` + "```" + `js
  * routerUse((next) => {
  *     return (c) => {
- *         console.log(c.Path())
+ *         console.log(c.path())
  *         return next(c)
  *     }
  * })
@@ -641,6 +641,22 @@ declare namespace $filesystem {
   let fileFromPath:      filesystem.newFileFromPath
   let fileFromBytes:     filesystem.newFileFromBytes
   let fileFromMultipart: filesystem.newFileFromMultipart
+
+  /**
+   * fileFromUrl creates a new File from the provided url by
+   * downloading the resource and creating a BytesReader.
+   *
+   * Example:
+   *
+   * ` + "```" + `js
+   * // with default max timeout of 120sec
+   * const file1 = $filesystem.fileFromUrl("https://...")
+   *
+   * // with custom timeout of 15sec
+   * const file2 = $filesystem.fileFromUrl("https://...", 15)
+   * ` + "```" + `
+   */
+  export function fileFromUrl(url: string, secTimeout?: number): filesystem.File
 }
 
 // -------------------------------------------------------------------
@@ -978,6 +994,8 @@ declare namespace $apis {
   let activityLogger:            apis.activityLogger
   let requestInfo:               apis.requestInfo
   let recordAuthResponse:        apis.recordAuthResponse
+  let gzip:                      middleware.gzip
+  let bodyLimit:                 middleware.bodyLimit
   let enrichRecord:              apis.enrichRecord
   let enrichRecords:             apis.enrichRecords
 }
@@ -985,6 +1003,12 @@ declare namespace $apis {
 // -------------------------------------------------------------------
 // httpClientBinds
 // -------------------------------------------------------------------
+
+// extra FormData overload to prevent TS warnings when used with non File/Blob value.
+interface FormData {
+  append(key:string, value:any): void
+  set(key:string, value:any): void
+}
 
 /**
  * ` + "`" + `$http` + "`" + ` defines common methods for working with HTTP requests.
@@ -1000,7 +1024,7 @@ declare namespace $http {
    * ` + "```" + `js
    * const res = $http.send({
    *     url:    "https://example.com",
-   *     data:   {"title": "test"}
+   *     body:   JSON.stringify({"title": "test"})
    *     method: "post",
    * })
    *
@@ -1013,7 +1037,7 @@ declare namespace $http {
    */
   function send(config: {
     url:      string,
-    body?:    string,
+    body?:    string|FormData,
     method?:  string, // default to "GET"
     headers?: { [key:string]: string },
     timeout?: number, // default to 120
@@ -1053,6 +1077,7 @@ func main() {
 
 	gen := tygoja.New(tygoja.Config{
 		Packages: map[string][]string{
+			"github.com/labstack/echo/v5/middleware":                   {"Gzip", "BodyLimit"},
 			"github.com/go-ozzo/ozzo-validation/v4":                    {"Error"},
 			"github.com/pocketbase/dbx":                                {"*"},
 			"github.com/AlperRehaYAZGAN/postgresbase/tools/security":   {"*"},

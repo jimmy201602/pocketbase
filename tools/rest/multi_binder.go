@@ -12,6 +12,36 @@ import (
 	"github.com/spf13/cast"
 )
 
+// MultipartJsonKey is the key for the special multipart/form-data
+// handling allowing reading serialized json payload without normalization.
+const MultipartJsonKey string = "@jsonPayload"
+
+// MultiBinder is similar to [echo.DefaultBinder] but uses slightly different
+// application/json and multipart/form-data bind methods to accommodate better
+// the PocketBase router needs.
+type MultiBinder struct{}
+
+// Bind implements the [Binder.Bind] method.
+//
+// Bind is almost identical to [echo.DefaultBinder.Bind] but uses the
+// [rest.BindBody] function for binding the request body.
+func (b *MultiBinder) Bind(c echo.Context, i interface{}) (err error) {
+	if err := echo.BindPathParams(c, i); err != nil {
+		return err
+	}
+
+	// Only bind query parameters for GET/DELETE/HEAD to avoid unexpected behavior with destination struct binding from body.
+	// For example a request URL `&id=1&lang=en` with body `{"id":100,"lang":"de"}` would lead to precedence issues.
+	method := c.Request().Method
+	if method == http.MethodGet || method == http.MethodDelete || method == http.MethodHead {
+		if err = echo.BindQueryParams(c, i); err != nil {
+			return err
+		}
+	}
+
+	return BindBody(c, i)
+}
+
 // BindBody binds request body content to i.
 //
 // This is similar to `echo.BindBody()`, but for JSON requests uses
@@ -43,8 +73,8 @@ func BindBody(c echo.Context, i any) error {
 func CopyJsonBody(r *http.Request, i any) error {
 	body := r.Body
 
-	// this usually shouldn't be needed because the Server calls close for us
-	// but we are changing the request body with a new reader
+	// this usually shouldn't be needed because the Server calls close
+	// for us but we are changing the request body with a new reader
 	defer body.Close()
 
 	limitReader := io.LimitReader(body, DefaultMaxMemory)
@@ -62,10 +92,8 @@ func CopyJsonBody(r *http.Request, i any) error {
 	return err
 }
 
-// This is temp hotfix for properly binding multipart/form-data array values
-// when a map destination is used.
-//
-// It should be replaced with echo.BindBody(c, i) once the issue is fixed in echo.
+// Custom multipart/form-data binder that implements an additional handling like
+// loading a serialized json payload or properly scan array values when a map destination is used.
 func bindFormData(c echo.Context, i any) error {
 	if i == nil {
 		return nil
@@ -80,6 +108,13 @@ func bindFormData(c echo.Context, i any) error {
 		return nil
 	}
 
+	// special case to allow submitting json without normalization
+	// alongside the other multipart/form-data values
+	jsonPayloadValues := values[MultipartJsonKey]
+	for _, payload := range jsonPayloadValues {
+		json.Unmarshal([]byte(payload), i)
+	}
+
 	rt := reflect.TypeOf(i).Elem()
 
 	// map
@@ -87,6 +122,10 @@ func bindFormData(c echo.Context, i any) error {
 		rv := reflect.ValueOf(i).Elem()
 
 		for k, v := range values {
+			if k == MultipartJsonKey {
+				continue
+			}
+
 			if total := len(v); total == 1 {
 				rv.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(normalizeMultipartValue(v[0])))
 			} else {

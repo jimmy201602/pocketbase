@@ -29,7 +29,6 @@ We just added a following features additinonally to the Pocketbase:
 - [ ] OAuth2 challenge and state keys stored in cache on single instance. We need to make it remote cache or database to support oauth2 on deployed multiple instances.  
 - [ ] Jwt Extra Claims support on after login and register.  
 
-
 ## Usage  
 You can easily fork and setup the project.  
 

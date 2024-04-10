@@ -10,7 +10,11 @@ import (
 	"sync"
 
 	"github.com/AlperRehaYAZGAN/postgresbase/core"
+	"github.com/AlperRehaYAZGAN/postgresbase/migrations"
+	"github.com/AlperRehaYAZGAN/postgresbase/migrations/logs"
 	"github.com/AlperRehaYAZGAN/postgresbase/tools/mailer"
+	"github.com/AlperRehaYAZGAN/postgresbase/tools/migrate"
+	"github.com/pocketbase/dbx"
 )
 
 // TestApp is a wrapper app instance used for testing.
@@ -36,20 +40,27 @@ type TestApp struct {
 //
 // After this call, the app instance shouldn't be used anymore.
 func (t *TestApp) Cleanup() {
-	t.ResetEventCalls()
-	t.ResetBootstrapState()
+	t.OnTerminate().Trigger(&core.TerminateEvent{App: t}, func(e *core.TerminateEvent) error {
+		t.TestMailer.Reset()
+		t.ResetEventCalls()
+		t.ResetBootstrapState()
+
+		return nil
+	})
 
 	if t.DataDir() != "" {
 		os.RemoveAll(t.DataDir())
 	}
 }
 
-// NewMailClient initializes test app mail client.
+// NewMailClient initializes (if not already) a test app mail client.
 func (t *TestApp) NewMailClient() mailer.Mailer {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 
-	t.TestMailer.Reset()
+	if t.TestMailer == nil {
+		t.TestMailer = &TestMailer{}
+	}
 
 	return t.TestMailer
 }
@@ -109,6 +120,11 @@ func NewTestApp(optTestDataDir ...string) (*TestApp, error) {
 		return nil, err
 	}
 	if _, err := app.LogsDao().DB().NewQuery("Select 1").Execute(); err != nil {
+		return nil, err
+	}
+
+	// apply any missing migrations
+	if err := runMigrations(app); err != nil {
 		return nil, err
 	}
 
@@ -538,6 +554,36 @@ func copyFile(src string, dest string) error {
 
 	if _, err := io.Copy(destFile, srcFile); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// @todo replace with app.RunMigrations on merge with the refactoring.
+func runMigrations(app core.App) error {
+	connections := []struct {
+		db             *dbx.DB
+		migrationsList migrate.MigrationsList
+	}{
+		{
+			db:             app.DB(),
+			migrationsList: migrations.AppMigrations,
+		},
+		{
+			db:             app.LogsDB(),
+			migrationsList: logs.LogsMigrations,
+		},
+	}
+
+	for _, c := range connections {
+		runner, err := migrate.NewRunner(c.db, c.migrationsList)
+		if err != nil {
+			return err
+		}
+
+		if _, err := runner.Up(); err != nil {
+			return err
+		}
 	}
 
 	return nil
