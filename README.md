@@ -57,7 +57,7 @@ openssl rsa -in ./keys/private.pem -outform PEM -pubout -out ./keys/public.pem
 export JWT_PRIVATE_KEY=$(cat ./keys/private.pem)
 export JWT_PUBLIC_KEY=$(cat ./keys/public.pem)
 export CGO_ENABLED=0
-exprot LOGS_DATABASE="postgresql://user:pass@localhost/logs?sslmode=disable"
+export LOGS_DATABASE="postgresql://user:pass@localhost/logs?sslmode=disable"
 export DATABASE="postgresql://user:pass@localhost/postgres?sslmode=disable"
 
 # optional ENV_VARS
